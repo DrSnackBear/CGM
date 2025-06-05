@@ -11,3 +11,8 @@ cursor.execute('''
         gold INTEGER,
         FOREIGN KEY(spieler_id) REFERNCES spieler(id)
 )''')
+
+cursor.execute("INSERT INTO spieler (spieler_id, name, fähigkeit, gold VALUES (1, Georg, Bogenschießer, 3)")
+cursor.execute("INSERT INTO spieler (spieler_id, name, fähigkeit, gold VALUES (2, Melina, Magierin, 4)")
+cursor.execute("INSERT INTO spieler (spieler_id, name, fähigkeit, gold VALUES (3, Christin, Schwertkämpferin, 5)")
+connection.commit()
