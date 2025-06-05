@@ -1,37 +1,44 @@
 import pygame
 import sys
 
-# Pygame initialisieren
 pygame.init()
 
-# Fenstergröße und -titel
 width, height = 800, 600
 screen = pygame.display.set_mode((width, height))
-pygame.display.set_caption("Bewegung mit Pfeiltasten")
+pygame.display.set_caption("Bewegung & Schießen")
 
-# Farben
 WHITE = (255, 255, 255)
 BLUE = (0, 0, 255)
+RED = (255, 0, 0)
 
-# Figur-Eigenschaften
 player_size = 50
 player_x = width // 2
 player_y = height // 2
 player_speed = 5
 
-# Haupt-Game-Loop
+# Liste für Kugeln
+bullets = []
+bullet_speed = 10
+bullet_width = 5
+bullet_height = 10
+
 clock = pygame.time.Clock()
 running = True
 while running:
-    clock.tick(60)  # 60 FPS
+    clock.tick(60)
     screen.fill(WHITE)
 
-    # Eingaben verarbeiten
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        # Kugel abschießen bei Leertaste (keydown)
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                # Kugel oben am Spieler starten
+                bullet_x = player_x + player_size // 2 - bullet_width // 2
+                bullet_y = player_y
+                bullets.append([bullet_x, bullet_y])
 
-    # Tastenabfrage
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT]:
         player_x -= player_speed
@@ -42,13 +49,18 @@ while running:
     if keys[pygame.K_DOWN]:
         player_y += player_speed
 
-    # Figur zeichnen
+    # Kugeln bewegen und zeichnen
+    for bullet in bullets[:]:
+        bullet[1] -= bullet_speed  # nach oben bewegen
+        if bullet[1] < 0:
+            bullets.remove(bullet)  # entfernen, wenn oben raus
+        else:
+            pygame.draw.rect(screen, RED, (bullet[0], bullet[1], bullet_width, bullet_height))
+
+    # Spieler zeichnen
     pygame.draw.rect(screen, BLUE, (player_x, player_y, player_size, player_size))
 
-    # Anzeige aktualisieren
     pygame.display.flip()
 
-# Spiel beenden
 pygame.quit()
 sys.exit()
-
