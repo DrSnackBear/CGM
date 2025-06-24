@@ -1,98 +1,149 @@
 import pygame
+import random
 import sys
 
-# Initialisierung
+# Grundeinstellungen
 pygame.init()
-WIDTH, HEIGHT = 800, 600
-FPS = 60
+WIDTH, HEIGHT = 800, 400
 WHITE = (255, 255, 255)
-BLUE = (50, 50, 255)
-GREEN = (50, 255, 50)
-GRAVITY = 0.5
-JUMP_STRENGTH = -10
+BLACK = (0, 0, 0)
+PLAYER_COLOR = (50, 150, 255)
+OBSTACLE_COLOR = (255, 50, 50)
+GROUND_Y = HEIGHT - 50
+FPS = 60
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Einfaches Jump and Run")
+pygame.display.set_caption("Endloses Jump and Run (mit Meter und steigender Geschwindigkeit)")
 clock = pygame.time.Clock()
+font = pygame.font.SysFont(None, 36)
 
 # Spielerklasse
-class Player(pygame.sprite.Sprite):
+class Player:
     def __init__(self):
-        super().__init__()
-        self.image = pygame.Surface((50, 50))
-        self.image.fill(BLUE)
-        self.rect = self.image.get_rect()
-        self.rect.x = 100
-        self.rect.y = HEIGHT - 150
+        self.width = 50
+        self.height = 50
+        self.x = 100
+        self.y = GROUND_Y - self.height
         self.vel_y = 0
-        self.on_ground = False
-
-    def update(self, platforms):
-        keys = pygame.key.get_pressed()
-        dx = 0
-        if keys[pygame.K_LEFT]:
-            dx = -5
-        if keys[pygame.K_RIGHT]:
-            dx = 5
-
-        # Schwerkraft
-        self.vel_y += GRAVITY
-        dy = self.vel_y
-
-        # Bewegung und Kollision mit Plattformen
-        self.on_ground = False
-        self.rect.x += dx
-        self.rect.y += dy
-        for platform in platforms:
-            if self.rect.colliderect(platform.rect):
-                if self.vel_y > 0:
-                    self.rect.bottom = platform.rect.top
-                    self.vel_y = 0
-                    self.on_ground = True
+        self.jump_strength = -12
+        self.gravity = 0.6
+        self.on_ground = True
 
     def jump(self):
         if self.on_ground:
-            self.vel_y = JUMP_STRENGTH
+            self.vel_y = self.jump_strength
+            self.on_ground = False
 
-# Plattformklasse
-class Platform(pygame.sprite.Sprite):
-    def __init__(self, x, y, w, h):
-        super().__init__()
-        self.image = pygame.Surface((w, h))
-        self.image.fill(GREEN)
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
+    def update(self):
+        self.vel_y += self.gravity
+        self.y += self.vel_y
+        if self.y >= GROUND_Y - self.height:
+            self.y = GROUND_Y - self.height
+            self.vel_y = 0
+            self.on_ground = True
 
-# Gruppen
+    def draw(self):
+        pygame.draw.rect(screen, PLAYER_COLOR, (self.x, self.y, self.width, self.height))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+# Hindernisklasse
+class Obstacle:
+    def __init__(self, speed):
+        self.width = 40
+        self.height = 60
+        self.x = WIDTH
+        self.y = GROUND_Y - self.height
+        self.speed = speed
+
+    def update(self):
+        self.x -= self.speed
+
+    def draw(self):
+        pygame.draw.rect(screen, OBSTACLE_COLOR, (self.x, self.y, self.width, self.height))
+
+    def is_off_screen(self):
+        return self.x + self.width < 0
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+# Initialisierung
 player = Player()
-platforms = [
-    Platform(0, HEIGHT - 40, WIDTH, 40),
-    Platform(200, 450, 150, 20),
-    Platform(400, 350, 150, 20),
-    Platform(600, 250, 150, 20)
-]
+obstacles = []
+spawn_timer = 0
+distance = 0  # gemessene Meter
+game_over = False
+speed = 6
+speed_increase_rate = 0.002  # Geschwindigkeit steigt langsam pro Tick
 
-all_sprites = pygame.sprite.Group()
-all_sprites.add(player)
-for plat in platforms:
-    all_sprites.add(plat)
-
-# Spiel-Loop
-running = True
-while running:
+# Spielschleife
+while True:
     clock.tick(FPS)
+    screen.fill(WHITE)
+
+    # Eventhandling
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-            player.jump()
+            pygame.quit()
+            sys.exit()
+        if not game_over and event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.jump()
+        if game_over and event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r:
+                # Reset
+                player = Player()
+                obstacles = []
+                spawn_timer = 0
+                distance = 0
+                speed = 6
+                game_over = False
 
-    player.update(platforms)
+    if not game_over:
+        # Geschwindigkeit erhöhen
+        speed += speed_increase_rate
 
-    screen.fill(WHITE)
-    all_sprites.draw(screen)
+        # Spielerupdate
+        player.update()
+
+        # Hindernisse erzeugen
+        spawn_timer += 1
+        if spawn_timer > 90:
+            spawn_timer = 0
+            if random.random() < 0.8:
+                obstacles.append(Obstacle(speed))
+
+        # Hindernisse aktualisieren
+        for obs in obstacles:
+            obs.speed = speed
+            obs.update()
+
+        # Hindernisse entfernen
+        obstacles = [obs for obs in obstacles if not obs.is_off_screen()]
+
+        # Kollision prüfen
+        for obs in obstacles:
+            if player.get_rect().colliderect(obs.get_rect()):
+                game_over = True
+
+        # Meter zählen (1 Tick = 1 Meter für Einfachheit)
+        distance += 1
+
+    # Zeichnen
+    player.draw()
+    for obs in obstacles:
+        obs.draw()
+    pygame.draw.line(screen, BLACK, (0, GROUND_Y), (WIDTH, GROUND_Y), 3)
+
+    # Meter-Anzeige
+    meter_text = font.render(f"Meter: {distance}", True, BLACK)
+    screen.blit(meter_text, (10, 10))
+
+    # Game Over-Anzeige
+    if game_over:
+        over_text = font.render("Game Over! Drücke R zum Neustart", True, (200, 0, 0))
+        screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2))
+
     pygame.display.flip()
-
-pygame.quit()
-sys.exit()
