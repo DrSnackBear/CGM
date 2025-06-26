@@ -1,11 +1,9 @@
 import sqlite3
-connection = sqlite3.connect('SpielCGM.db')
+connection = sqlite3.connect('scores_CGM.db')
 cursor = connection.cursor()
 
 cursor.execute('''
-    CREATE TABLE IF NOT EXITS Spielstand
-        id INTEGER PRIMARY KEY,
-        spieler_id INTEGER,
+    CREATE TABLE IF NOT EXITS highscores (
         name TEXT,
         score INTEGER,
         FOREIGN KEY(spieler_id) REFERENCES spieler(id)
