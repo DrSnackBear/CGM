@@ -3,7 +3,7 @@ connection = sqlite3.connect('scores_CGM.db')
 cursor = connection.cursor()
 
 cursor.execute('''
-    CREATE TABLE IF NOT EXITS highscores (
+    CREATE TABLE IF NOT EXISTS highscores (
         name TEXT,
         score INTEGER,
         FOREIGN KEY(spieler_id) REFERENCES spieler(id)
