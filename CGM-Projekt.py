@@ -121,90 +121,157 @@ class Obstacle:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
+# --- Münzklasse ---
+class Coin:
+    def __init__(self, speed):
+        self.radius = 15
+        self.speed = speed
+        self.x = WIDTH
+        self.y = GROUND_Y - 100  # Luftposition
+
+    def update(self):
+        self.x -= self.speed
+
+    def draw(self):
+        pygame.draw.circle(screen, (255, 215, 0), (int(self.x), int(self.y)), self.radius)
+
+    def get_rect(self):
+        return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius*2, self.radius*2)
+
+    def is_off_screen(self):
+        return self.x + self.radius < 0
+
 # --- Initialisierung ---
 player = Player()
 obstacles = []
+coins = []
 spawn_timer = 0
+coin_spawn_timer = 0
 distance = 0
+coins_collected = 0
 game_over = False
 speed = 6
 speed_increase_rate = 0.002
+
+show_instructions = True  # Zeigt vor Spielstart Erklärung an
 
 # --- Spielschleife ---
 while True:
     clock.tick(FPS)
     screen.fill(WHITE)
 
-    keys = pygame.key.get_pressed()
-    if not game_over:
-        player.duck(keys[pygame.K_LCTRL])
-
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             connection.close()
             sys.exit()
-        if not game_over and event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                player.jump()
-        if game_over and event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_r:
-                # Highscore prüfen und speichern
-                if distance > highscore:
-                    highscore = distance
-                    save_score(player_name, highscore)
-                restart_count += 1
+        if show_instructions:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                show_instructions = False  # Spiel starten
+        else:
+            if not game_over and event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    player.jump()
+            if game_over and event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    # Highscore speichern
+                    if distance > highscore:
+                        highscore = distance
+                        save_score(player_name, highscore)
+                    restart_count += 1
 
-                # Neustart
-                player = Player()
-                obstacles = []
+                    # Neustart mit Erklärung wieder anzeigen
+                    show_instructions = True
+                    player = Player()
+                    obstacles = []
+                    coins = []
+                    spawn_timer = 0
+                    coin_spawn_timer = 0
+                    distance = 0
+                    coins_collected = 0
+                    speed = 6
+                    game_over = False
+
+    if show_instructions:
+        # Erklärung anzeigen
+        instructions = [
+            "Springe mit LEERTASTE",
+            "Ducke mit STRG",
+            "Sammle gelbe Münzen!",
+            "Viel Spaß!",
+            "Drücke LEERTASTE zum Starten"
+        ]
+        for i, line in enumerate(instructions):
+            text = font.render(line, True, BLACK)
+            screen.blit(text, (WIDTH // 2 - text.get_width() // 2, 100 + i * 40))
+    else:
+        keys = pygame.key.get_pressed()
+        if not game_over:
+            player.duck(keys[pygame.K_LCTRL])
+
+        if not game_over:
+            speed += speed_increase_rate
+            player.update()
+
+            spawn_timer += 1
+            coin_spawn_timer += 1
+
+            if spawn_timer > 90:
                 spawn_timer = 0
-                distance = 0
-                speed = 6
-                game_over = False
+                kind = "ground" if distance < 200 else random.choice(["ground", "air"])
+                obstacles.append(Obstacle(speed, kind))
 
-    if not game_over:
-        speed += speed_increase_rate
+            if coin_spawn_timer > 150:
+                coin_spawn_timer = 0
+                coins.append(Coin(speed))
 
-        player.update()
+            for obs in obstacles:
+                obs.speed = speed
+                obs.update()
+            obstacles = [obs for obs in obstacles if not obs.is_off_screen()]
 
-        spawn_timer += 1
-        if spawn_timer > 90:
-            spawn_timer = 0
-            kind = "ground" if distance < 200 else random.choice(["ground", "air"])
-            obstacles.append(Obstacle(speed, kind))
+            for coin in coins:
+                coin.speed = speed
+                coin.update()
+            coins = [coin for coin in coins if not coin.is_off_screen()]
 
+            # Kollision mit Hindernissen prüfen
+            for obs in obstacles:
+                if player.get_rect().colliderect(obs.get_rect()):
+                    if obs.kind == "ground" and player.y + player.height >= obs.y:
+                        game_over = True
+                    elif obs.kind == "air" and not player.is_ducking:
+                        game_over = True
+
+            # Kollision mit Münzen prüfen
+            for coin in coins[:]:
+                if player.get_rect().colliderect(coin.get_rect()):
+                    coins_collected += 1
+                    coins.remove(coin)
+
+            distance += 1
+
+        player.draw()
         for obs in obstacles:
-            obs.speed = speed
-            obs.update()
+            obs.draw()
+        for coin in coins:
+            coin.draw()
+        pygame.draw.line(screen, BLACK, (0, GROUND_Y), (WIDTH, GROUND_Y), 3)
 
-        obstacles = [obs for obs in obstacles if not obs.is_off_screen()]
+        meter_text = font.render(f"Meter: {distance}", True, BLACK)
+        screen.blit(meter_text, (10, 10))
 
-        for obs in obstacles:
-            if player.get_rect().colliderect(obs.get_rect()):
-                if obs.kind == "ground" and player.y + player.height >= obs.y:
-                    game_over = True
-                elif obs.kind == "air" and not player.is_ducking:
-                    game_over = True
+        coin_text = font.render(f"Münzen: {coins_collected}", True, BLACK)
+        screen.blit(coin_text, (10, 50))
 
-        distance += 1
+        highscore_text = font.render(f"Highscore: {highscore}", True, BLACK)
+        screen.blit(highscore_text, (10, 90))
 
-    player.draw()
-    for obs in obstacles:
-        obs.draw()
-    pygame.draw.line(screen, BLACK, (0, GROUND_Y), (WIDTH, GROUND_Y), 3)
+        restart_text = font.render(f"Neustarts: {restart_count}", True, BLACK)
+        screen.blit(restart_text, (10, 130))
 
-    meter_text = font.render(f"Meter: {distance}", True, BLACK)
-    screen.blit(meter_text, (10, 10))
-
-    highscore_text = font.render(f"Highscore: {highscore}", True, BLACK)
-    screen.blit(highscore_text, (10, 50))
-
-    restart_text = font.render(f"Neustarts: {restart_count}", True, BLACK)
-    screen.blit(restart_text, (10, 90))
-
-    if game_over:
-        over_text = font.render("Game Over! Drücke R zum Neustart", True, (200, 0, 0))
-        screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2))
+        if game_over:
+            over_text = font.render("Game Over! Drücke R zum Neustart", True, (200, 0, 0))
+            screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2))
 
     pygame.display.flip()
