@@ -3,14 +3,16 @@ connection = sqlite3.connect('scores_CGM.db')
 cursor = connection.cursor()
 
 cursor.execute('''
-    CREATE TABLE IF NOT EXISTS highscores (
+CREATE TABLE IF NOT EXISTS highscores (
         name TEXT,
-        score INTEGER,
-        FOREIGN KEY(spieler_id) REFERENCES spieler(id)
-)''')
+        score INTEGER
+        
+)
+''')
 
-cursor.execute("INSERT INTO Spielstand (spieler_id, name, score) VALUES (1, Spieler1, 0)")
-cursor.execute("INSERT INTO Spielstand (spieler_id, name, score) VALUES (2, Spieler2, 0)")
+cursor.execute('''
+INSERT INTO highscores (name, score) 
+VALUES ("Spieler1", 0)''')
 connection.commit()
 
 import pygame
@@ -188,5 +190,18 @@ while True:
     if game_over:
         over_text = font.render("Game Over! Drücke R zum Neustart", True, (200, 0, 0))
         screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2))
+        cursor.execute('''
+        UPDATE highscores
+        SET score = ?
+        WHERE name = ?''', (distance, Spieler))
+        connection.commit()
+        cursor.execute('''SELECT name, score FROM highscores WHERE score > 1''')
+        top_spieler = cursor.fetchall()
+
+        for name, score in top_spieler:
+            print(f"{name}: {score} Punkte")
+        connection.commit()
+
+
 
     pygame.display.flip()
