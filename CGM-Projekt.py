@@ -13,6 +13,11 @@ cursor.execute('''
         score INTEGER
     )
 ''')
+
+cursor.execute('''
+    INSERT INTO highscores (name, scores)
+    VALUES ( Spieler1, 0)
+    ''')
 connection.commit()
 
 def get_highscore(name):
