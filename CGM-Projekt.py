@@ -1,23 +1,34 @@
+import pygame
+import random
+import sys
 import sqlite3
+
+# --- Datenbank Setup ---
 connection = sqlite3.connect('scores_CGM.db')
 cursor = connection.cursor()
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS highscores (
         name TEXT,
-        score INTEGER,
-        FOREIGN KEY(spieler_id) REFERENCES spieler(id)
-)''')
-
-cursor.execute("INSERT INTO Spielstand (spieler_id, name, score) VALUES (1, Spieler1, 0)")
-cursor.execute("INSERT INTO Spielstand (spieler_id, name, score) VALUES (2, Spieler2, 0)")
+        score INTEGER
+    )
+''')
 connection.commit()
 
-import pygame
-import random
-import sys
+def get_highscore(name):
+    cursor.execute("SELECT MAX(score) FROM highscores WHERE name = ?", (name,))
+    result = cursor.fetchone()
+    return result[0] if result and result[0] is not None else 0
 
-# Grundeinstellungen
+def save_score(name, score):
+    cursor.execute("INSERT INTO highscores (name, score) VALUES (?, ?)", (name, score))
+    connection.commit()
+
+player_name = "Spieler1"
+highscore = get_highscore(player_name)
+restart_count = 0
+
+# --- Pygame Setup ---
 pygame.init()
 WIDTH, HEIGHT = 800, 400
 WHITE = (255, 255, 255)
@@ -31,7 +42,7 @@ pygame.display.set_caption("Jump & Run mit Boden-Ducken und Luft-Hindernissen")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont(None, 36)
 
-# Spielerklasse
+# --- Spielerklasse ---
 class Player:
     def __init__(self):
         self.width = 50
@@ -70,8 +81,10 @@ class Player:
             self.on_ground = True
         else:
             self.on_ground = False
-            self.is_ducking = False
-            self.height = self.normal_height
+            # Beim Springen kann man nicht ducken
+            if not self.on_ground:
+                self.is_ducking = False
+                self.height = self.normal_height
 
     def draw(self):
         pygame.draw.rect(screen, PLAYER_COLOR, (self.x, self.y, self.width, self.height))
@@ -79,17 +92,17 @@ class Player:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
-# Hindernisklasse mit Stacheln
+# --- Hindernisklasse ---
 class Obstacle:
     def __init__(self, speed, kind):
-        self.kind = kind  # 'ground' oder 'air'
+        self.kind = kind  # "ground" oder "air"
         self.speed = speed
         self.width = 30
         self.height = 40
         self.x = WIDTH
         if kind == "ground":
             self.y = GROUND_Y - self.height
-        else:  # Luft-Hindernis (z.B. fliegende Stacheln)
+        else:
             self.y = GROUND_Y - 80
 
     def update(self):
@@ -108,7 +121,7 @@ class Obstacle:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
-# Initialisierung
+# --- Initialisierung ---
 player = Player()
 obstacles = []
 spawn_timer = 0
@@ -117,12 +130,11 @@ game_over = False
 speed = 6
 speed_increase_rate = 0.002
 
-# Spielschleife
+# --- Spielschleife ---
 while True:
     clock.tick(FPS)
     screen.fill(WHITE)
 
-    # Steuerung
     keys = pygame.key.get_pressed()
     if not game_over:
         player.duck(keys[pygame.K_LCTRL])
@@ -130,12 +142,20 @@ while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
+            connection.close()
             sys.exit()
         if not game_over and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 player.jump()
         if game_over and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_r:
+                # Highscore prüfen und speichern
+                if distance > highscore:
+                    highscore = distance
+                    save_score(player_name, highscore)
+                restart_count += 1
+
+                # Neustart
                 player = Player()
                 obstacles = []
                 spawn_timer = 0
@@ -144,13 +164,10 @@ while True:
                 game_over = False
 
     if not game_over:
-        # Geschwindigkeit erhöhen
         speed += speed_increase_rate
 
-        # Update
         player.update()
 
-        # Hindernisse erzeugen
         spawn_timer += 1
         if spawn_timer > 90:
             spawn_timer = 0
@@ -163,27 +180,28 @@ while True:
 
         obstacles = [obs for obs in obstacles if not obs.is_off_screen()]
 
-        # Kollision prüfen
         for obs in obstacles:
             if player.get_rect().colliderect(obs.get_rect()):
                 if obs.kind == "ground" and player.y + player.height >= obs.y:
                     game_over = True
-                elif obs.kind == "air":
-                    if not player.is_ducking:
-                        game_over = True
+                elif obs.kind == "air" and not player.is_ducking:
+                    game_over = True
 
-        # Meter zählen
         distance += 1
 
-    # Zeichnen
     player.draw()
     for obs in obstacles:
         obs.draw()
     pygame.draw.line(screen, BLACK, (0, GROUND_Y), (WIDTH, GROUND_Y), 3)
 
-    # Meteranzeige
     meter_text = font.render(f"Meter: {distance}", True, BLACK)
     screen.blit(meter_text, (10, 10))
+
+    highscore_text = font.render(f"Highscore: {highscore}", True, BLACK)
+    screen.blit(highscore_text, (10, 50))
+
+    restart_text = font.render(f"Neustarts: {restart_count}", True, BLACK)
+    screen.blit(restart_text, (10, 90))
 
     if game_over:
         over_text = font.render("Game Over! Drücke R zum Neustart", True, (200, 0, 0))
