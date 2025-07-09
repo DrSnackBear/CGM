@@ -1,24 +1,25 @@
-import pygame
-import random
-import sys
-import sqlite3
+import pygame # pygame nutzbar gemacht
+import random # Freischaltung von Auswahl zufälliger Zahlen
+import sys # Interaktion mit System freigeschaltet
+import sqlite3 # Datenbank-System wird miteingebracht
 
 # --- Datenbank Setup ---
 connection = sqlite3.connect('scores_CGM.db')
 cursor = connection.cursor()
 
-cursor.execute('''
+cursor.execute(''' 
     CREATE TABLE IF NOT EXISTS highscores (
         name TEXT,
         score INTEGER
     )
 ''')
-
+# Datenbank wird erstellt mit den Tabellen "Name" und "Score"
 cursor.execute('''
     INSERT INTO highscores (name, scores)
     VALUES ( Spieler1, 0)
     ''')
 connection.commit()
+# "Name" und "Score" wird anfangs sofort festgelegt
 
 def get_highscore(name):
     cursor.execute("SELECT MAX(score) FROM highscores WHERE name = ?", (name,))
@@ -35,55 +36,55 @@ restart_count = 0
 
 # --- Pygame Setup ---
 pygame.init()
-WIDTH, HEIGHT = 800, 400
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
+WIDTH, HEIGHT = 800, 400 # Bildschirmgröße festgelegt
+WHITE = (255, 255, 255) # Färbung des Hintergrundes
+BLACK = (0, 0, 0) # 
 PLAYER_COLOR = (50, 150, 255)
 GROUND_Y = HEIGHT - 50
-FPS = 60
+FPS = 60 # Anzahl der Frames, die pro Sekunde ablaufen sollen
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Jump & Run mit Boden-Ducken und Luft-Hindernissen")
-clock = pygame.time.Clock()
-font = pygame.font.SysFont(None, 36)
+screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Festerbildöffnung + als Variable "screen" festlegen
+pygame.display.set_caption("Jump & Run CGM") #Benennung des Spiels
+clock = pygame.time.Clock() # Steuerung Bildwiederholrate
+font = pygame.font.SysFont(None, 36) #Schriftstyle festlegen
 
 # --- Spielerklasse ---
-class Player:
+class Player: #Klasse Spieler eingebaut
     def __init__(self):
         self.width = 50
-        self.normal_height = 50
+        self.normal_height = 50 #Größeeigenschaften des Spielblocks
         self.duck_height = 30
         self.height = self.normal_height
         self.x = 100
         self.y = GROUND_Y - self.height
         self.vel_y = 0
-        self.jump_strength = -12
+        self.jump_strength = -12 # Springkraft und Springhöhe (unten drunter) wird zugeordnet 
         self.gravity = 0.6
-        self.on_ground = True
+        self.on_ground = True 
         self.is_ducking = False
 
     def jump(self):
-        if self.on_ground and not self.is_ducking:
+        if self.on_ground and not self.is_ducking: #Limiert Aktion, Spieler kann nicht springen und sich ducken
             self.vel_y = self.jump_strength
             self.on_ground = False
 
     def duck(self, is_pressed):
-        if self.on_ground:
-            self.is_ducking = is_pressed
+        if self.on_ground: # wenn sich Spielerblock auf Boden befindet, dann kann sich der Spieler ducken
+            self.is_ducking = is_pressed # Blockzustand wird eine Variable zugeordnet
             if self.is_ducking:
-                self.height = self.duck_height
+                self.height = self.duck_height #Normale Höhe des Blocks wird auf die niederigere Höhe fürs Ducken übernommen
                 self.y = GROUND_Y - self.height
             else:
                 self.height = self.normal_height
                 self.y = GROUND_Y - self.height
 
     def update(self):
-        self.vel_y += self.gravity
+        self.vel_y += self.gravity #Gravitation des Blocks wird in Variablen gepackt
         self.y += self.vel_y
         if self.y >= GROUND_Y - self.height:
             self.y = GROUND_Y - self.height
             self.vel_y = 0
-            self.on_ground = True
+            self.on_ground = True # das Landen des Blocks wird hier überprüft & gecheckt, damit Spieler zunächst wieder springen kann
         else:
             self.on_ground = False
             # Beim Springen kann man nicht ducken
@@ -91,10 +92,10 @@ class Player:
                 self.is_ducking = False
                 self.height = self.normal_height
 
-    def draw(self):
+    def draw(self): # fügt den Block auf das Fesnter/Spielfeld
         pygame.draw.rect(screen, PLAYER_COLOR, (self.x, self.y, self.width, self.height))
 
-    def get_rect(self):
+    def get_rect(self): # prüft im Spiel die Kollision mit den Hindernissen
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
 # --- Hindernisklasse ---
@@ -102,18 +103,18 @@ class Obstacle:
     def __init__(self, speed, kind):
         self.kind = kind  # "ground" oder "air"
         self.speed = speed
-        self.width = 30
+        self.width = 30 # Hindernisgröße wird festgelegt
         self.height = 40
         self.x = WIDTH
         if kind == "ground":
             self.y = GROUND_Y - self.height
         else:
-            self.y = GROUND_Y - 80
+            self.y = GROUND_Y - 80 # Hindernisse in der Luft
 
     def update(self):
-        self.x -= self.speed
+        self.x -= self.speed # Geschwindigkeitsbewegung des Spielers wird vergrößert
 
-    def draw(self):
+    def draw(self): # Design der Dreiecke wird hier festgelegt, also Farbe und das es gleichschenklig ist
         color = (200, 0, 0) if self.kind == "ground" else (255, 120, 0)
         point1 = (self.x, self.y + self.height)
         point2 = (self.x + self.width // 2, self.y)
@@ -123,7 +124,7 @@ class Obstacle:
     def is_off_screen(self):
         return self.x + self.width < 0
 
-    def get_rect(self):
+    def get_rect(self): #Erklärung oben
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
 # --- Initialisierung ---
@@ -140,13 +141,13 @@ while True:
     clock.tick(FPS)
     screen.fill(WHITE)
 
-    keys = pygame.key.get_pressed()
+    keys = pygame.key.get_pressed() #Aktionen für Spieler werden hier benutztbar gemacht
     if not game_over:
         player.duck(keys[pygame.K_LCTRL])
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            pygame.quit()
+            pygame.quit() #Spiel wird beim Verlieren beendet
             connection.close()
             sys.exit()
         if not game_over and event.type == pygame.KEYDOWN:
