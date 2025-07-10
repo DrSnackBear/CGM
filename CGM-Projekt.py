@@ -9,20 +9,49 @@ cursor = connection.cursor()
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS highscores (
-        name TEXT,
+        name TEXT PRIMARY KEY,
         score INTEGER
     )
 ''')
 connection.commit()
 
+# Vorhandene Duplikate bereinigen, falls vorhanden (nur bester Score pro Spieler)
+def clean_duplicates():
+    # Hole alle Namen mit mehrfachen Einträgen
+    cursor.execute('''
+        SELECT name, MAX(score) as max_score
+        FROM highscores
+        GROUP BY name
+        HAVING COUNT(*) > 1
+    ''')
+    duplicates = cursor.fetchall()
+    for name, max_score in duplicates:
+        # Lösche alle Einträge mit dem Namen
+        cursor.execute('DELETE FROM highscores WHERE name = ?', (name,))
+        # Schreibe den besten Score zurück
+        cursor.execute('INSERT INTO highscores (name, score) VALUES (?, ?)', (name, max_score))
+    connection.commit()
+
+clean_duplicates()
+
 def get_highscore(name):
-    cursor.execute("SELECT MAX(score) FROM highscores WHERE name = ?", (name,))
+    cursor.execute("SELECT score FROM highscores WHERE name = ?", (name,))
     result = cursor.fetchone()
-    return result[0] if result and result[0] is not None else 0
+    return result[0] if result else 0
 
 def save_score(name, score):
-    cursor.execute("INSERT INTO highscores (name, score) VALUES (?, ?)", (name, score))
+    cursor.execute("SELECT score FROM highscores WHERE name = ?", (name,))
+    result = cursor.fetchone()
+    if result is None:
+        cursor.execute("INSERT INTO highscores (name, score) VALUES (?, ?)", (name, score))
+    else:
+        if score > result[0]:
+            cursor.execute("UPDATE highscores SET score = ? WHERE name = ?", (score, name))
     connection.commit()
+
+def get_all_highscores():
+    cursor.execute("SELECT name, score FROM highscores ORDER BY score DESC")
+    return cursor.fetchall()
 
 player_name = "Spieler1"
 highscore = get_highscore(player_name)
@@ -44,9 +73,8 @@ font = pygame.font.SysFont(None, 36)
 
 # --- Münzbild laden ---
 coin_image = pygame.image.load("coin.png").convert_alpha()
-coin_image = pygame.transform.scale(coin_image, (30, 30))  # Größe anpassen
+coin_image = pygame.transform.scale(coin_image, (30, 30))
 
-# --- Spielerklasse ---
 class Player:
     def __init__(self):
         self.width = 50
@@ -85,7 +113,6 @@ class Player:
             self.on_ground = True
         else:
             self.on_ground = False
-            # Beim Springen kann man nicht ducken
             if not self.on_ground:
                 self.is_ducking = False
                 self.height = self.normal_height
@@ -96,10 +123,9 @@ class Player:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
-# --- Hindernisklasse ---
 class Obstacle:
     def __init__(self, speed, kind):
-        self.kind = kind  # "ground" oder "air"
+        self.kind = kind
         self.speed = speed
         self.width = 30
         self.height = 40
@@ -125,19 +151,17 @@ class Obstacle:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
-# --- Münzklasse ---
 class Coin:
     def __init__(self, speed):
         self.radius = 15
         self.speed = speed
         self.x = WIDTH
-        self.y = GROUND_Y - 100  # Luftposition
+        self.y = GROUND_Y - 100
 
     def update(self):
         self.x -= self.speed
 
     def draw(self):
-        # Hier wird jetzt das Bild statt eines Kreises gezeichnet
         screen.blit(coin_image, (int(self.x - self.radius), int(self.y - self.radius)))
 
     def get_rect(self):
@@ -146,7 +170,6 @@ class Coin:
     def is_off_screen(self):
         return self.x + self.radius < 0
 
-# --- Initialisierung ---
 player = Player()
 obstacles = []
 coins = []
@@ -158,9 +181,38 @@ game_over = False
 speed = 6
 speed_increase_rate = 0.002
 
-show_instructions = True  # Zeigt vor Spielstart Erklärung an
+show_instructions = True
+show_highscore_table = False
 
-# --- Spielschleife ---
+def draw_highscore_table():
+    screen.fill(WHITE)
+    title = font.render("Highscore Tabelle", True, BLACK)
+    screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 20))
+
+    headers = ["Name", "Score"]
+    x_positions = [WIDTH // 4, WIDTH // 4 * 3]
+    for i, header in enumerate(headers):
+        header_text = font.render(header, True, BLACK)
+        screen.blit(header_text, (x_positions[i] - header_text.get_width() // 2, 70))
+
+    highscores = get_all_highscores()
+    y_start = 110
+    line_height = 36
+
+    if not highscores:
+        no_data = font.render("Keine Highscores vorhanden.", True, BLACK)
+        screen.blit(no_data, (WIDTH // 2 - no_data.get_width() // 2, HEIGHT // 2))
+    else:
+        for i, (name, score) in enumerate(highscores):
+            name_text = font.render(name, True, BLACK)
+            score_text = font.render(str(score), True, BLACK)
+            y = y_start + i * line_height
+            screen.blit(name_text, (x_positions[0] - name_text.get_width() // 2, y))
+            screen.blit(score_text, (x_positions[1] - score_text.get_width() // 2, y))
+
+    instr = font.render("Drücke R zum Neustart oder Q zum Beenden", True, BLACK)
+    screen.blit(instr, (WIDTH // 2 - instr.get_width() // 2, HEIGHT - 50))
+
 while True:
     clock.tick(FPS)
     screen.fill(WHITE)
@@ -170,22 +222,15 @@ while True:
             pygame.quit()
             connection.close()
             sys.exit()
-        if show_instructions:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                show_instructions = False  # Spiel starten
-        else:
-            if not game_over and event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    player.jump()
-            if game_over and event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r:
-                    # Highscore speichern
-                    if distance > highscore:
-                        highscore = distance
-                        save_score(player_name, highscore)
-                    restart_count += 1
 
-                    # Neustart mit Erklärung wieder anzeigen
+        if show_instructions:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+                show_instructions = False
+
+        elif show_highscore_table:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    show_highscore_table = False
                     show_instructions = True
                     player = Player()
                     obstacles = []
@@ -196,19 +241,38 @@ while True:
                     coins_collected = 0
                     speed = 6
                     game_over = False
+                elif event.key == pygame.K_q:
+                    pygame.quit()
+                    connection.close()
+                    sys.exit()
+
+        else:
+            if not game_over and event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    player.jump()
+            if game_over and event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    if distance > highscore:
+                        highscore = distance
+                        save_score(player_name, highscore)
+                    restart_count += 1
+                    show_highscore_table = True
 
     if show_instructions:
-        # Erklärung anzeigen
         instructions = [
             "Springe mit LEERTASTE",
             "Ducke mit STRG",
             "Sammle gelbe Münzen!",
             "Viel Spaß!",
-            "Drücke LEERTASTE zum Starten"
+            "Drücke R zum Starten"
         ]
         for i, line in enumerate(instructions):
             text = font.render(line, True, BLACK)
             screen.blit(text, (WIDTH // 2 - text.get_width() // 2, 100 + i * 40))
+
+    elif show_highscore_table:
+        draw_highscore_table()
+
     else:
         keys = pygame.key.get_pressed()
         if not game_over:
@@ -240,7 +304,6 @@ while True:
                 coin.update()
             coins = [coin for coin in coins if not coin.is_off_screen()]
 
-            # Kollision mit Hindernissen prüfen
             for obs in obstacles:
                 if player.get_rect().colliderect(obs.get_rect()):
                     if obs.kind == "ground" and player.y + player.height >= obs.y:
@@ -248,7 +311,6 @@ while True:
                     elif obs.kind == "air" and not player.is_ducking:
                         game_over = True
 
-            # Kollision mit Münzen prüfen
             for coin in coins[:]:
                 if player.get_rect().colliderect(coin.get_rect()):
                     coins_collected += 1
