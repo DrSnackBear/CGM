@@ -13,11 +13,6 @@ cursor.execute('''
         score INTEGER
     )
 ''')
-
-cursor.execute('''
-    INSERT INTO highscores (name, scores)
-    VALUES ( Spieler1, 0)
-    ''')
 connection.commit()
 
 # Vorhandene Duplikate bereinigen, falls vorhanden (nur bester Score pro Spieler)
