@@ -42,6 +42,10 @@ pygame.display.set_caption("Jump & Run mit Boden-Ducken und Luft-Hindernissen")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont(None, 36)
 
+# --- Münzbild laden ---
+coin_image = pygame.image.load("coin.png").convert_alpha()
+coin_image = pygame.transform.scale(coin_image, (30, 30))  # Größe anpassen
+
 # --- Spielerklasse ---
 class Player:
     def __init__(self):
@@ -133,7 +137,8 @@ class Coin:
         self.x -= self.speed
 
     def draw(self):
-        pygame.draw.circle(screen, (255, 215, 0), (int(self.x), int(self.y)), self.radius)
+        # Hier wird jetzt das Bild statt eines Kreises gezeichnet
+        screen.blit(coin_image, (int(self.x - self.radius), int(self.y - self.radius)))
 
     def get_rect(self):
         return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius*2, self.radius*2)
