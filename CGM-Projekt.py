@@ -7,8 +7,6 @@ import sqlite3
 connection = sqlite3.connect('scores_CGM.db')
 cursor = connection.cursor()
 
-# Tabelle neu erstellen (nur bei Entwicklung sinnvoll)
-cursor.execute("DROP TABLE IF EXISTS highscores")
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS highscores (
         name TEXT PRIMARY KEY,
@@ -18,28 +16,13 @@ cursor.execute('''
 ''')
 connection.commit()
 
-def clean_duplicates():
-    cursor.execute('''
-        SELECT name, MAX(score), MAX(coins)
-        FROM highscores
-        GROUP BY name
-        HAVING COUNT(*) > 1
-    ''')
-    duplicates = cursor.fetchall()
-    for name, max_score, max_coins in duplicates:
-        cursor.execute('DELETE FROM highscores WHERE name = ?', (name,))
-        cursor.execute('INSERT INTO highscores (name, score, coins) VALUES (?, ?, ?)', (name, max_score, max_coins))
-    connection.commit()
-
-clean_duplicates()
-
 def get_highscore(name):
     cursor.execute("SELECT score FROM highscores WHERE name = ?", (name,))
     result = cursor.fetchone()
     return result[0] if result else 0
 
 def save_score(name, score, coins):
-    cursor.execute("SELECT score, coins FROM highscores WHERE name = ?", (name,))
+    cursor.execute("SELECT score FROM highscores WHERE name = ?", (name,))
     result = cursor.fetchone()
     if result is None:
         cursor.execute("INSERT INTO highscores (name, score, coins) VALUES (?, ?, ?)", (name, score, coins))
@@ -48,13 +31,13 @@ def save_score(name, score, coins):
             cursor.execute("UPDATE highscores SET score = ?, coins = ? WHERE name = ?", (score, coins, name))
     connection.commit()
 
-def get_all_highscores():
-    cursor.execute("SELECT name, score, coins FROM highscores ORDER BY score DESC")
+def get_all_highscores(limit=5):
+    cursor.execute("SELECT name, score, coins FROM highscores ORDER BY score DESC LIMIT ?", (limit,))
     return cursor.fetchall()
 
-# --- Spielername ohne tkinter ---
-player_name = input("Bitte gib deinen Namen ein: ").strip()
-if not player_name:
+# --- Spielername per input abfragen ---
+player_name = input("Bitte gib deinen Namen ein: ")
+if not player_name.strip():
     player_name = "Spieler1"
 
 highscore = get_highscore(player_name)
@@ -77,7 +60,6 @@ font = pygame.font.SysFont(None, 36)
 coin_image = pygame.image.load("coin.png").convert_alpha()
 coin_image = pygame.transform.scale(coin_image, (30, 30))
 
-# --- Klassen ---
 class Player:
     def __init__(self):
         self.width = 50
@@ -100,8 +82,12 @@ class Player:
     def duck(self, is_pressed):
         if self.on_ground:
             self.is_ducking = is_pressed
-            self.height = self.duck_height if is_pressed else self.normal_height
-            self.y = GROUND_Y - self.height
+            if self.is_ducking:
+                self.height = self.duck_height
+                self.y = GROUND_Y - self.height
+            else:
+                self.height = self.normal_height
+                self.y = GROUND_Y - self.height
 
     def update(self):
         self.vel_y += self.gravity
@@ -112,8 +98,9 @@ class Player:
             self.on_ground = True
         else:
             self.on_ground = False
-            self.is_ducking = False
-            self.height = self.normal_height
+            if not self.on_ground:
+                self.is_ducking = False
+                self.height = self.normal_height
 
     def draw(self):
         pygame.draw.rect(screen, PLAYER_COLOR, (self.x, self.y, self.width, self.height))
@@ -163,7 +150,6 @@ class Coin:
     def is_off_screen(self):
         return self.x + self.radius < 0
 
-# --- Spielvariablen ---
 player = Player()
 obstacles = []
 coins = []
@@ -179,7 +165,7 @@ show_highscore_table = False
 
 def draw_highscore_table():
     screen.fill(WHITE)
-    title = font.render("Highscore Tabelle", True, BLACK)
+    title = font.render("Highscore Tabelle (Top 5)", True, BLACK)
     screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 20))
 
     headers = ["Name", "Score", "Münzen"]
@@ -188,7 +174,7 @@ def draw_highscore_table():
         header_text = font.render(header, True, BLACK)
         screen.blit(header_text, (x_positions[i] - header_text.get_width() // 2, 70))
 
-    highscores = get_all_highscores()
+    highscores = get_all_highscores(limit=5)
     y_start = 110
     line_height = 36
 
@@ -208,7 +194,6 @@ def draw_highscore_table():
     instr = font.render("Drücke R zum Neustart oder Q zum Beenden", True, BLACK)
     screen.blit(instr, (WIDTH // 2 - instr.get_width() // 2, HEIGHT - 50))
 
-# --- Spiel-Loop ---
 while True:
     clock.tick(FPS)
     screen.fill(WHITE)
@@ -247,7 +232,7 @@ while True:
             if game_over and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 if distance > highscore:
                     highscore = distance
-                    save_score(player_name, highscore, coins_collected)
+                save_score(player_name, int(highscore), coins_collected)
                 restart_count += 1
                 show_highscore_table = True
 
@@ -265,6 +250,7 @@ while True:
         if not game_over:
             player.duck(keys[pygame.K_LCTRL])
 
+        if not game_over:
             speed += speed_increase_rate
             player.update()
             spawn_timer += 1
@@ -321,3 +307,4 @@ while True:
             screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2))
 
     pygame.display.flip()
+
