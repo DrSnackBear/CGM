@@ -1,7 +1,7 @@
 import pygame
 import random
 import sys
-import sqlite3
+import sqlite3 #import
 
 # --- Datenbank Setup ---
 connection = sqlite3.connect('scores_CGM.db')
