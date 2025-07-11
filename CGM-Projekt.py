@@ -194,20 +194,20 @@ def draw_highscore_table():
     instr = font.render("Drücke R zum Neustart oder Q zum Beenden", True, BLACK) #nachdem man die besten scores gesehen hat, wird angeboten das Spiel zu beenden oder weiterzuspielen
     screen.blit(instr, (WIDTH // 2 - instr.get_width() // 2, HEIGHT - 50))
 
-while True:
+while True: #Schleife läuft über das ganze Spiel durch
     clock.tick(FPS)
-    screen.fill(WHITE)
+    screen.fill(WHITE) #Hintergrund wird weiß zu Beginn des Spieles
 
-    for event in pygame.event.get():
+    for event in pygame.event.get(): #Bei Tastendruck wird Spiel und Datenbank geschlossen    
         if event.type == pygame.QUIT:
             pygame.quit()
             connection.close()
             sys.exit()
 
-        if show_instructions and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-            show_instructions = False
+        if show_instructions and event.type == pygame.KEYDOWN and event.key == pygame.K_r: #Spiel beginnt, wenn R gedrückt wird
+            show_instructions = False 
 
-        elif show_highscore_table:
+        elif show_highscore_table:  #Highscoretabelle wird angezeigt
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     show_highscore_table = False
@@ -228,7 +228,7 @@ while True:
 
         else:
             if not game_over and event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                player.jump()
+                player.jump() #Spieler springt bei Tastendruck der Leertaste
             if game_over and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 if distance > highscore:
                     highscore = distance
@@ -243,15 +243,15 @@ while True:
             screen.blit(text, (WIDTH // 2 - text.get_width() // 2, 100 + i * 40))
 
     elif show_highscore_table:
-        draw_highscore_table()
+        draw_highscore_table() #Highscoretablle wird erstellt
 
     else:
         keys = pygame.key.get_pressed()
         if not game_over:
-            player.duck(keys[pygame.K_LCTRL])
+            player.duck(keys[pygame.K_LCTRL]) #Wenn STRG gedrückt wird, duckt sich das Quadrat
 
         if not game_over:
-            speed += speed_increase_rate
+            speed += speed_increase_rate #Spiel verschnellert sich nach einer gewissen Zeit
             player.update()
             spawn_timer += 1
             coin_spawn_timer += 1
@@ -259,15 +259,15 @@ while True:
             if spawn_timer > 90:
                 spawn_timer = 0
                 kind = "ground" if distance < 200 else random.choice(["ground", "air"])
-                obstacles.append(Obstacle(speed, kind))
+                obstacles.append(Obstacle(speed, kind)) #neues Hindernis wird hinzugefügt
 
             if coin_spawn_timer > 150:
                 coin_spawn_timer = 0
-                coins.append(Coin(speed))
+                coins.append(Coin(speed)) #Neue Münzen werden erstellt
 
             for obs in obstacles:
-                obs.speed = speed
-                obs.update()
+                obs.speed = speed #Geschwindigkeit wird erhöht
+                obs.update() #Hindernis aktualisiert
             obstacles = [obs for obs in obstacles if not obs.is_off_screen()]
 
             for coin in coins:
@@ -276,19 +276,19 @@ while True:
             coins = [coin for coin in coins if not coin.is_off_screen()]
 
             for obs in obstacles:
-                if player.get_rect().colliderect(obs.get_rect()):
+                if player.get_rect().colliderect(obs.get_rect()): # Kollision mit Hindernis
                     if obs.kind == "ground" and player.y + player.height >= obs.y:
-                        game_over = True
+                        game_over = True # Bodenhindernis getroffen
                     elif obs.kind == "air" and not player.is_ducking:
-                        game_over = True
+                        game_over = True # Luft-Hindernis getroffen, wenn nicht geduckt
 
-            for coin in coins[:]:
+            for coin in coins[:]: #überprüft ob mit Münze eingesammelt
                 if player.get_rect().colliderect(coin.get_rect()):
                     coins_collected += 1
                     coins.remove(coin)
 
             distance += 1
-
+         #SPieler, Münzen und Hindernisse werden gezeichnet
         player.draw()
         for obs in obstacles:
             obs.draw()
@@ -296,15 +296,22 @@ while True:
             coin.draw()
 
         pygame.draw.line(screen, BLACK, (0, GROUND_Y), (WIDTH, GROUND_Y), 3)
+        # Zeichnet eine schwarze Linie, die den Boden darstellt.
+        # Startpunkt: ganz links (x=0) auf Höhe GROUND_Y, Endpunkt: ganz rechts (x=WIDTH), gleiche Höhe.
+        # Die Linienbreite beträgt 3 Pixel
 
-        screen.blit(font.render(f"Meter: {distance}", True, BLACK), (10, 10))
-        screen.blit(font.render(f"Münzen: {coins_collected}", True, BLACK), (10, 50))
-        screen.blit(font.render(f"Highscore: {highscore}", True, BLACK), (10, 90))
-        screen.blit(font.render(f"Neustarts: {restart_count}", True, BLACK), (10, 130))
+        screen.blit(font.render(f"Meter: {distance}", True, BLACK), (10, 10))  # Zeichnet den aktuellen Spielfortschritt in Metern oben links auf den Bildschirm (Position 10,10).
+
+        screen.blit(font.render(f"Münzen: {coins_collected}", True, BLACK), (10, 50))     # Zeigt die Anzahl gesammelter Münzen unter dem Meterstand an (Position 10,50).
+
+        screen.blit(font.render(f"Highscore: {highscore}", True, BLACK), (10, 90))     # Zeigt den bisherigen Highscore darunter an (Position 10,90).
+
+        screen.blit(font.render(f"Neustarts: {restart_count}", True, BLACK), (10, 130))     # Zeigt die Anzahl der Neustarts seit Programmstart an (Position 10,130).
+
 
         if game_over:
-            over_text = font.render("Game Over! Drücke R zum Neustart", True, (200, 0, 0))
-            screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2))
+            over_text = font.render("Game Over! Drücke R zum Neustart", True, (200, 0, 0)) # Wenn das Spiel vorbei ist, wird ein roter "Game Over"-Text angezeigt. Text wird in roter Farbe erstellt.
+            screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2)) #Platzierung des Textes
 
-    pygame.display.flip()
+    pygame.display.flip() #Aktualisierung, gibt Code und Objekte wieder.
 
