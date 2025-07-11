@@ -15,6 +15,6 @@ Mit `r` kann man eine neue Runde starten, mit `q` das Spiel beenden.
 - sqlite3 (ist bei Python standardmäßig dabei)
 
 ## Aufteilung
-- Georg:
-- Melina: README erstellen
+- Georg: Grundspiel eingesetzt, Tester, Kommentare eingesetzt, Menu erstellt, README(Haupt) Updaten
+- Melina: README erstellen, Datenbank hineingefügt, Extrafeature mit Münzen eingebaut, Kommentare schreiben
 - Christin: Namen_eingeben, Highscoreliste, distanzeinfügen, README updaten
