@@ -16,5 +16,5 @@ Mit `r` kann man eine neue Runde starten, mit `q` das Spiel beenden.
 
 ## Aufteilung
 - Georg:
-- Melina:
-- Christin: Namen_eingeben, Highscoreliste, distanzeinfügen
+- Melina: README erstellen
+- Christin: Namen_eingeben, Highscoreliste, distanzeinfügen, README updaten
